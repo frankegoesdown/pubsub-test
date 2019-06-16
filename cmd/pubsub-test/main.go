@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	p "../../internal/pkg/pubsub"
+	p "github.com/frankegoesdown/pubsub-test/internal/app/pubsub"
 )
 
 func publisher(pubSub *p.PubSub, calls *[]string) {

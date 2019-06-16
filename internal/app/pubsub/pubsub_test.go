@@ -2,148 +2,166 @@ package pubsub
 
 import (
 	"errors"
+	"log"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+func assertNilError(t *testing.T, err error) {
+	assert.Equal(t, nil, err)
+
+}
 
 func TestSubscriptionsCalledSequentially(t *testing.T) {
-	ps := Pubsub{}
+	pubSub := NewPubSub()
 	var calls []string
-	var result error
-	a := makeSubscription("A sub", nil, &calls)
-	b := makeSubscription("B sub", nil, &calls)
-	c := makeSubscription("C sub", nil, &calls)
+	var err error
 
-	ps.Subscribe(a)
-	ps.Subscribe(b)
-	ps.Subscribe(c)
+	subscriberA := pubSub.MakeSubscription("subscriberA", nil, &calls)
+	subscriberB := pubSub.MakeSubscription("subscriberB", nil, &calls)
+	subscriberC := pubSub.MakeSubscription("subscriberC", nil, &calls)
 
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub", "B sub", "C sub"}, calls)
-	assert.Equal(t, nil, result)
+	pubSub.Subscribe(subscriberA)
+	pubSub.Subscribe(subscriberB)
+	pubSub.Subscribe(subscriberC)
+
+	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA", "subscriberB", "subscriberC"}, calls)
+	assertNilError(t, err)
 }
 
 func TestSubscriptionsReceiveParams(t *testing.T) {
-	ps := Pubsub{}
+	pubSub := NewPubSub()
 	var calls []string
-	var result error
-	a := makeSubscription("A sub", nil, &calls)
-	b := makeSubscription("B sub", nil, &calls)
+	var err error
 
-	ps.Subscribe(a)
-	ps.Subscribe(b)
+	subscriberA := pubSub.MakeSubscription("subscriberA", nil, &calls)
+	subscriberB := pubSub.MakeSubscription("subscriberB", nil, &calls)
 
-	result = ps.Publish("param1", "param2")
-	assert.Equal(t, []string{"A sub: [param1 param2]", "B sub: [param1 param2]"}, calls)
-	assert.Equal(t, nil, result)
+	pubSub.Subscribe(subscriberA)
+	pubSub.Subscribe(subscriberB)
 
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub: [param1 param2]", "B sub: [param1 param2]", "A sub", "B sub"}, calls)
-	assert.Equal(t, nil, result)
+	// publish param1 and param2
+	err = pubSub.Publish("param1", "param2")
+	assert.Equal(t, []string{"subscriberA: [param1 param2]", "subscriberB: [param1 param2]"}, calls)
+	assertNilError(t, err)
+
+	// publish without params in calls should be added subscriberA and subscriberB without params
+ 	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA: [param1 param2]", "subscriberB: [param1 param2]", "subscriberA", "subscriberB"}, calls)
+	assertNilError(t, err)
 }
 
 func TestNoSubscriptions(t *testing.T) {
-	ps := Pubsub{}
-	var result error
+	pubSub := NewPubSub()
+	var err error
 
-	result = ps.Publish("param1", "param2")
-	assert.Equal(t, nil, result)
+	err = pubSub.Publish("param1", "param2")
+	assertNilError(t, err)
 }
 
 func TestAllDuplicatedSubscriptionsCalled(t *testing.T) {
-	ps := Pubsub{}
+	pubSub := NewPubSub()
 	var calls []string
-	var result error
-	a := makeSubscription("A sub", nil, &calls)
+	var err error
 
-	ps.Subscribe(a)
-	ps.Subscribe(a)
-	ps.Subscribe(a)
+	subscriberA := pubSub.MakeSubscription("subscriberA", nil, &calls)
 
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub", "A sub", "A sub"}, calls)
-	assert.Equal(t, nil, result)
+	pubSub.Subscribe(subscriberA)
+	pubSub.Subscribe(subscriberA)
+	pubSub.Subscribe(subscriberA)
+
+	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA", "subscriberA", "subscriberA"}, calls)
+	assertNilError(t, err)
 }
 
 func TestUnsubscribe(t *testing.T) {
-	ps := Pubsub{}
+	pubSub := NewPubSub()
 	var calls []string
-	var result error
-	a := makeSubscription("A sub", nil, &calls)
-	b := makeSubscription("B sub", Unsubscribe, &calls)
-	c := makeSubscription("C sub", nil, &calls)
+	var err error
 
-	ps.Subscribe(a)
-	ps.Subscribe(b)
-	ps.Subscribe(c)
+	subscriberA := pubSub.MakeSubscription("subscriberA", nil, &calls)
+	subscriberB := pubSub.MakeSubscription("subscriberB", Unsubscribe, &calls)
+	subscriberC := pubSub.MakeSubscription("subscriberC", nil, &calls)
 
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub", "B sub", "C sub"}, calls)
-	assert.Equal(t, nil, result)
+	pubSub.Subscribe(subscriberA)
+	pubSub.Subscribe(subscriberB)
+	pubSub.Subscribe(subscriberC)
 
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub", "B sub", "C sub", "A sub", "C sub"}, calls)
-	assert.Equal(t, nil, result)
+	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA", "subscriberB", "subscriberC"}, calls)
+	assertNilError(t, err)
 
-	ps.Subscribe(b)
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub", "B sub", "C sub", "A sub", "C sub", "A sub", "C sub", "B sub"}, calls)
-	assert.Equal(t, nil, result)
+	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA", "subscriberB", "subscriberC", "subscriberA", "subscriberC"}, calls)
+	assertNilError(t, err)
+
+	pubSub.Subscribe(subscriberB)
+	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA", "subscriberB", "subscriberC", "subscriberA", "subscriberC", "subscriberA", "subscriberC", "subscriberB"}, calls)
+	assertNilError(t, err)
 }
 
 func TestAllErrorsPropagated(t *testing.T) {
-	ps := Pubsub{}
+	pubSub := NewPubSub()
 	var calls []string
-	var result error
-	a := makeSubscription("A sub", errors.New("A sub error"), &calls)
-	b := makeSubscription("B sub", nil, &calls)
-	c := makeSubscription("C sub", errors.New("C sub error"), &calls)
+	var err error
 
-	ps.Subscribe(a)
-	ps.Subscribe(b)
-	ps.Subscribe(c)
+	subscriberA := pubSub.MakeSubscription("subscriberA", errors.New("A subscription error"), &calls)
+	subscriberB := pubSub.MakeSubscription("subscriberB", Unsubscribe, &calls)
+	subscriberC := pubSub.MakeSubscription("subscriberC", errors.New("C subscription error"), &calls)
 
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub", "B sub", "C sub"}, calls)
-	assert.Equal(t, "A sub error; C sub error", result.Error())
+	pubSub.Subscribe(subscriberA)
+	pubSub.Subscribe(subscriberB)
+	pubSub.Subscribe(subscriberC)
 
-	result = ps.Publish()
-	assert.Equal(t, []string{"A sub", "B sub", "C sub", "B sub"}, calls)
-	assert.Equal(t, nil, result)
+	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA", "subscriberB", "subscriberC"}, calls)
+	assert.Equal(t, "A subscription error; C subscription error", err.Error())
+
+	err = pubSub.Publish()
+	assert.Equal(t, []string{"subscriberA", "subscriberB", "subscriberC"}, calls)
+	assert.Equal(t, nil, err)
 }
 
 func Benchmark100Publishers10Subscribers(b *testing.B) {
 	publishersNum := 100
 	subscribersNum := 10
-	benchmarkPubsub(b, publishersNum, subscribersNum)
+	benchmarkPubSub(b, publishersNum, subscribersNum)
 }
 
 func Benchmark100Publishers100Subscribers(b *testing.B) {
 	publishersNum := 100
 	subscribersNum := 100
-	benchmarkPubsub(b, publishersNum, subscribersNum)
+	benchmarkPubSub(b, publishersNum, subscribersNum)
 }
 
 func Benchmark1000Publishers10Subscribers(b *testing.B) {
 	publishersNum := 1000
 	subscribersNum := 10
-	benchmarkPubsub(b, publishersNum, subscribersNum)
+	benchmarkPubSub(b, publishersNum, subscribersNum)
 }
 
 func Benchmark1000Publishers100Subscribers(b *testing.B) {
 	publishersNum := 1000
 	subscribersNum := 100
-	benchmarkPubsub(b, publishersNum, subscribersNum)
+	benchmarkPubSub(b, publishersNum, subscribersNum)
 }
 
-func benchmarkPubsub(b *testing.B, publishersNum, subscribersNum int) {
-	pubsub := Pubsub{}
+func Benchmark100000Publishers1000Subscribers(b *testing.B) {
+	publishersNum := 100000
+	subscribersNum := 1000
+	benchmarkPubSub(b, publishersNum, subscribersNum)
+}
+
+func benchmarkPubSub(b *testing.B, publishersNum, subscribersNum int) {
+	pubSub := NewPubSub()
 
 	for i := 0; i < subscribersNum; i++ {
-		pubsub.Subscribe(func(params ...interface{}) error {
+		pubSub.Subscribe(func(params ...interface{}) error {
 			return nil
 		})
 	}
@@ -152,7 +170,10 @@ func benchmarkPubsub(b *testing.B, publishersNum, subscribersNum int) {
 	b.SetParallelism(publishersNum / runtime.GOMAXPROCS(0))
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			pubsub.Publish("param")
+			err := pubSub.Publish("param")
+			if err != nil {
+				log.Println(err)
+			}
 		}
 	})
 }

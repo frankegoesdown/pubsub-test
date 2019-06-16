@@ -3,7 +3,6 @@ package pubsub
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -47,11 +46,10 @@ func (ps *PubSub) Subscribe(s Subscription) {
 	ps.subscriptions = append(ps.subscriptions, &sub{
 		worker: s,
 		subId:  subscriptionId})
-	log.Println("New subscription successfully added")
 }
 
 func generateSubscriptionId() string {
-	return uuid.Must(uuid.NewV4()).String()
+	return uuid.Must(uuid.NewV4(), nil).String()
 }
 
 // Publish method for publishing messages
